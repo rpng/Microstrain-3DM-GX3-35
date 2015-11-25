@@ -1,4 +1,4 @@
-# microstrain_comm
+# microstrain_3dm_gx3_35
 
 * IMU driver for the Microstrain 3DM-GX3®-35.
 * Converted to run on the ROS framework from LCM
