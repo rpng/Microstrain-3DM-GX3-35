@@ -1,6 +1,7 @@
 # microstrain_3dm_gx3_35
 
 * IMU driver for the Microstrain 3DM-GX3®-35.
+* GPS driver codes are also included here (under development).
 * Original package got from https://github.com/udrg/microstrain_comm
 * Built with ROS indigo on Ubuntu 14.04 LTS
 
