@@ -43,9 +43,6 @@ public:
     unsigned int baud_rate;
     unsigned int data_rate;
 
-    //dt for angular rate and acceleration computation
-    double delta_t;
-
     //buffers: com port buffer -> read_buffer -> input_buffer
     Byte input_buffer[INPUT_BUFFER_SIZE];
     BotRingBuf* read_buffer;
@@ -893,15 +890,12 @@ int main(int argc, char** argv)
     if (data_rate == "low") {
         app->data_rate = DATA_RATE_DEFAULT;
         app->baud_rate = BAUD_RATE_DEFAULT;
-        app->delta_t = DELTA_ANG_VEL_DT_DEFAULT;
     } else if (data_rate == "medium") {
         app->data_rate = DATA_RATE_MED;
         app->baud_rate = BAUD_RATE_MED;
-        app->delta_t = DELTA_ANG_VEL_DT_MED;
     } else if (data_rate == "high") {
         app->data_rate = DATA_RATE_HIGH;
         app->baud_rate = BAUD_RATE_HIGH;
-        app->delta_t = DELTA_ANG_VEL_DT_HIGH;
     } else {
         cerr << "Unknown update rate flag - using default rate" << endl;
     }
