@@ -124,10 +124,6 @@
 
 #define AHRS_DATA_RATE(x) (1000 / x)
 #define GPS_DATA_RATE(x)  (4 / x)
-//Delta T----------------------------------------
-#define DELTA_ANG_VEL_DT_DEFAULT 0.010 // 1/100
-#define DELTA_ANG_VEL_DT_MED     0.002 // 1/500
-#define DELTA_ANG_VEL_DT_HIGH    0.001 // 1/1000
 //Others-----------------------------------------
 #define GRAVITY 9.80665
 
