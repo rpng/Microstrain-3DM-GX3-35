@@ -75,6 +75,7 @@ public:
 //sig_action()--------------------------------------------------------------------------------
 //callback function that will exit the glib loop.
 //--------------------------------------------------------------------------------------------
+// TODO: Start comment with space then capital letter
 static void sig_action(int signal, siginfo_t* s, void* user)
 {
     // kill the glib main loop...
@@ -103,6 +104,8 @@ void install_signal_handler()
 //they are for opening com port with proper settings and finding attached microstrain devices.
 //--------------------------------------------------------------------------------------------
 //scandev()-----------------------------------------------------------------------------------
+// TODO: Comments should go ontop not next to the variables/methods
+// TODO: Take a look at an example of this method: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L117-L175
 bool scandev(char* comm_port_name) {
     FILE *instream;
     char dev_names[255][255]; //allows for up to 256 devices with path links up to 255 characters long each
@@ -134,6 +137,7 @@ bool scandev(char* comm_port_name) {
         cout << "Device found: " << i << " : " << dev_names[i] << endl;
     }
 
+    // TODO: Correct capitalization
     //CHOOSE DEVICE TO CONNECT TO AND CONNECT TO IT (IF THERE ARE CONNECTED DEVICES)
     if (dev_count > 0) {
         if (dev_count > 1) {
@@ -143,7 +147,6 @@ bool scandev(char* comm_port_name) {
                 getchar(); //clear carriage return from keyboard buffer after invalid choice
             }
         }
-
         strcpy(comm_port_name, dev_names[usr_choice]);
         return true;
     } else {
@@ -153,6 +156,8 @@ bool scandev(char* comm_port_name) {
 }
 
 //setup_com_port()----------------------------------------------------------------------------
+// TODO: Start comments with space then capital letter
+// TODO: Describ and condense your comments see: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L181-L229
 int setup_com_port(ComPortHandle comPort, speed_t baudRate) {
     struct termios options;
 
@@ -186,6 +191,7 @@ int setup_com_port(ComPortHandle comPort, speed_t baudRate) {
     //set local mode and enable the receiver
     options.c_cflag |= (CLOCAL | CREAD);
 
+    // TODO: Remove this random "-----------------", just include words in comments
     //Purge com port I\O buffers-----------------
     tcflush(comPort, TCIOFLUSH);
 
@@ -207,6 +213,8 @@ int setup_com_port(ComPortHandle comPort, speed_t baudRate) {
 //it opens a com port with the correct settings.
 //tweaked OpenComPort()- added baud rate argument and split it into two steps.
 //--------------------------------------------------------------------------------------------
+// TODO: Update the function comment to explain what this method does in more detail
+// TODO: See: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L231-L246
 int open_com_port(const char* comPortPath, speed_t baudRate) {
     int comPort = open(comPortPath, O_RDWR | O_NOCTTY);
 
@@ -221,6 +229,9 @@ int open_com_port(const char* comPortPath, speed_t baudRate) {
 //cksum()-------------------------------------------------------------------------------------
 //it uses 2-byte Fletcher ckecksum algorithm.
 //--------------------------------------------------------------------------------------------
+// TODO: Good function header, just remember to start with space then capital letter
+// TODO: Compare with: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L248-L259
+// TODO: Get rid of extra new lines that are not needed, comment what you loop is doing
 unsigned short cksum(const Byte* packet_bytes, int packet_length) {
     uint8_t checksum_byte1 = 0;
     uint8_t checksum_byte2 = 0;
@@ -236,27 +247,35 @@ unsigned short cksum(const Byte* packet_bytes, int packet_length) {
 //handle_message()----------------------------------------------------------------------------
 //it parses the content in payload bytes.
 //--------------------------------------------------------------------------------------------
+// TODO: This function needs a lot of work on the comments, and cleaning
+// TODO: Create a better function comment. See:  https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L410-L414
 bool handle_message(app_t* app) {
     bool success = false;
 
+    // TODO: Describe what these are needed for
     uint8_t header_byte_set_desc;
     uint8_t header_byte_payload_length;
 
+    // TODO: Describe what these are needed for, remove this "//field_4_..." that doesn't have any purpose
     uint8_t field_1_byte_length,   field_2_byte_length,   field_3_byte_length;   //field_4_...
     uint8_t field_1_byte_cmd_desc, field_2_byte_cmd_desc, field_3_byte_cmd_desc; //field_4_...
     //for command set reply
+    // TODO: Space then capital letter in comment
     uint8_t field_1_byte_cmd_echo, field_2_byte_cmd_echo, field_3_byte_cmd_echo; //field_4_...
     uint8_t field_1_byte_err_code, field_2_byte_err_code, field_3_byte_err_code; //field_4_...
     //for data set reply
+    // TODO: Remove 4 spaces, just use a single space between muli variables
     uint8_t field_1_byte_data,     field_2_byte_data,     field_3_byte_data;     //field_4_...
 
+    // Describe what these do
     uint8_t len_payload;
     uint8_t len_field_1, len_field_2, len_field_3; //len_field_4
 
     float float_vals[9] = {0}; //for the longest data format (36-byte) convert
 
+    // Our core timer, and sync time
     int ins_timer;
-    int64_t utime = bot_timestamp_now(); //get current timestamp
+    int64_t utime = bot_timestamp_now();
     int64_t utime_nosyn = utime;
 
     if (app->verbose)
@@ -267,6 +286,7 @@ bool handle_message(app_t* app) {
     header_byte_payload_length = 3;
     len_payload = (uint8_t) app->input_buffer[header_byte_payload_length];
 
+    // TODO: Explain here why you are setting these values, in human understandable form
     field_1_byte_length   = 4;
     field_1_byte_cmd_desc = 5;
     field_1_byte_cmd_echo = 6; //for command set reply
@@ -274,6 +294,7 @@ bool handle_message(app_t* app) {
     field_1_byte_data     = 6; //for data set reply
     len_field_1 = (uint8_t) app->input_buffer[field_1_byte_length];
 
+    // TODO: Explain the if statment logic, and what you do if it is true, might need two lines to explain this
     if (len_payload - len_field_1 != 0) {
         field_2_byte_length   = field_1_byte_length + len_field_1;
         field_2_byte_cmd_desc = field_2_byte_length + 1;
@@ -282,6 +303,7 @@ bool handle_message(app_t* app) {
         field_2_byte_data     = field_2_byte_length + 2;
         len_field_2 = (uint8_t) app->input_buffer[field_2_byte_length];
 
+    // TODO: Explain the if statment logic, and what you do if it is true, might need two lines to explain this
         if (len_payload - len_field_1 - len_field_2 != 0) {
             field_3_byte_length   = field_2_byte_length + len_field_2;
             field_3_byte_cmd_desc = field_3_byte_length + 1;
@@ -290,6 +312,7 @@ bool handle_message(app_t* app) {
             field_3_byte_data     = field_3_byte_length + 2;
             len_field_3 = (uint8_t) app->input_buffer[field_3_byte_length];
 
+            // TODO: Remove this, you have two examples above, and this just clutters up the code, not sure why it is here.
             //if (len_payload - len_field_1 - len_field_2 - len_field_3 != 0){
                  //field_4_...
                  //field_4_...
@@ -302,6 +325,9 @@ bool handle_message(app_t* app) {
     }
 
     //parsing message... ...
+    // TODO: For this I recommend sending off the data to another method
+    // TODO: For example, whenever you have a "BASE_COMMAND_SET" you pass that data to the base_command method
+    // TODO: that you then do your second if statment. Right now this is very cluttered and hard to read, using methods can clean this up
     switch (app->input_buffer[header_byte_set_desc]) {
         case BASE_COMMAND_SET: {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
@@ -321,7 +347,6 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [Ping] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [Ping] command echo : command timeout\n");
-
                         break;
                     }
                     case SET_TO_IDLE: {
@@ -339,9 +364,11 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [Set To Idle] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [Set To Idle] command echo : command timeout\n");
-
                         break;
                     }
+                    // TODO: Figure out the logic for these
+                    // TODO: They where orginally overflowing into the "RESUME" switch because they did not have breaks
+                    // TODO: If this is the case, the explain why you do that in a comment, so the programmer knows why this logic is such
                     case GET_DEV_INFO:
                         fprintf(stderr, "Get Dev Info : Ignoring\n");
                         break;
@@ -366,7 +393,6 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [Resume] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [Resume] command echo : command timeout\n");
-
                         break;
                     }
                     case DEV_RESET: {
@@ -395,6 +421,7 @@ bool handle_message(app_t* app) {
                 }//switch
             }//if
 
+            // TODO: Remove this old code stuff, or label it with a TODO label explaining what needs to get done here
             //if (app->input_buffer[3 + field_1_length + 2] == 0x81/0x83/...) {//for Reply Field 2: ... ...
             //
             //}
@@ -420,7 +447,6 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [AHRS Message Format] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [AHRS Message Format] command echo : command timeout\n");
-
                         break;
                     }
                     case GPS_MESSAGE_FORMAT: {
@@ -438,7 +464,6 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [GPS Message Format] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [GPS Message Format] command echo : command timeout\n");
-
                         break;
                     }
                     case EN_DEV_CONT_DATA_STREAM: {
@@ -456,7 +481,6 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : command timeout\n");
-
                         break;
                     }
                     case SAVE_DEV_STARTUP_SETTING: {
@@ -474,7 +498,6 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [Save Device Startup Setting] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [Save Device Startup Setting] command echo : command timeout\n");
-
                         break;
                     }
                     case UART_BAUD_RATE: {
@@ -492,7 +515,6 @@ bool handle_message(app_t* app) {
                             fprintf(stderr, "Received [UART Baud Rate] command echo : command failed\n");
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
                             fprintf(stderr, "Received [UART Baud Rate] command echo : command timeout\n");
-
                         break;
                     }
                     default: {
@@ -545,9 +567,11 @@ bool handle_message(app_t* app) {
 
                     break;
                 }
+                // TODO: Remove this random stuff
                 //case ...:
                     //... ...
                     //break;
+                // TODO: You don't need a default statment if you do not have anything special to do, remove this
                 default:
                     break;
             }
@@ -593,11 +617,14 @@ bool handle_message(app_t* app) {
             success = true;
 
             //publish to imu topic
+            // TODO: Space then capital letter
             imu_data_pub_.publish(app->reading);
 
             break;
         }
 
+        // TODO: What is going on here, comment with TODOs explain what you will do in the future
+        // TODO: If nothing is planned for this, just remove this code that you don't need
         case GPS_DATA_SET: {
             switch (app->input_buffer[field_1_byte_cmd_desc]) {
                 case ECEF_POSITION:
@@ -633,6 +660,10 @@ bool handle_message(app_t* app) {
 //it has two states, either parsing the header bytes or parsing payload and checksum bytes.
 //it will be waiting until it has all expected bytes before taking appropriate action.
 //--------------------------------------------------------------------------------------------
+// TODO: Come up with better line usage
+// TODO: This is a mess of a method to make look good and comment but do your best
+// TODO: Try to group similar things, and then add a new line for new groups
+// TODO: See: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L585-L605
 void unpack_packets(app_t* app) {
 
     while (bot_ringbuf_available(app->read_buffer) >= app->expected_segment_length) {
@@ -643,6 +674,7 @@ void unpack_packets(app_t* app) {
             if (app->verbose)
                 fprintf(stderr, "Received packet with the starting byte : 0x%x\n", app->input_buffer[0]);
             //parse header
+            // TODO: Make this if statment a single line
             if ((app->input_buffer[0] == MIP_PACKET_SYNC1) &&
                 (app->input_buffer[1] == MIP_PACKET_SYNC2)) {
                 app->expected_segment_length = LEN_PACKET_HEADER + app->input_buffer[3] + LEN_PACKET_CHECKSUM;
@@ -689,6 +721,11 @@ void unpack_packets(app_t* app) {
 //it generates the commands for setting AHRS and GPS.
 //it uses std::string to operate the commands, so that user can modify the contents easily.
 //--------------------------------------------------------------------------------------------
+// TODO: This function needs some work, each loop needs to have a comment explaining the logic
+// TODO: Along with this, try to remove your debug code when you can, it make this look a lot messier than it is
+// TODO: You have a lot of fprints, you can us the std::cout, but try to remove all debug and add comments
+// TODO: If you want debug, add it as a part of the program using the "if (app->debug)" statment
+// TODO: Comments on sperate lines, and not to the side, and they start with a space and then capital letter
 bool set_commands(app_t* app, const char* command_header, const char* command_field_1, const char* command_field_2) {
     cout << "in function set_commands()" << endl;
 
@@ -754,6 +791,9 @@ bool set_commands(app_t* app, const char* command_header, const char* command_fi
     //}
     //fprintf(stderr, "\n");
 
+    // TODO: I am not sure why you need to make a new variable for this write
+    // TODO: Not the best memory management, try to write using your created command_t
+    // TODO: so you don't have to add more memory to the heap
     char* command = new char [command_t.size() + 1]; //allocated on heap; +1 means add "\0" to the end
     memcpy(command, command_t.c_str(), command_t.size() + 1);
     for (int n = 0; n < command_t.size(); ++n) {
@@ -778,6 +818,7 @@ bool set_commands(app_t* app, const char* command_header, const char* command_fi
     uint8_t len_reply_payload = (uint8_t) app->input_buffer[3];
     app->expected_segment_length = LEN_REPLY_HEADER + len_reply_payload + LEN_REPLY_CHECKSUM;
     if (read(app->comm, &app->input_buffer[LEN_REPLY_HEADER], len_reply_payload + LEN_REPLY_CHECKSUM) == -1) {
+        // TODO: This should probably go to the cerr stream not the cout stream
         cout << "Error: failed in receiving the rest of command echo" << endl;
         return false;
     }
@@ -789,6 +830,8 @@ bool set_commands(app_t* app, const char* command_header, const char* command_fi
     cout << "length of reply: " << app->expected_segment_length << endl;
 
     cout << "7===================================" << endl;
+    // TODO: Comment what this is doing, not sure what it is doing
+    // TODO: If statment should all be one line
     if (app->input_buffer[0] == MIP_PACKET_SYNC1 &&
         app->input_buffer[1] == MIP_PACKET_SYNC2) {
         unsigned short inpacket_cksum = make16UnsignedInt(&app->input_buffer[app->expected_segment_length - 2], app->little_endian);
@@ -797,7 +840,7 @@ bool set_commands(app_t* app, const char* command_header, const char* command_fi
             fprintf(stderr, "Error: failed in checksum! got : %d, expected : %d\n", inpacket_cksum, computed_cksum);
             return false;
         }
-
+        // TODO: Should probably be cerr, and comment what this if statment is checking
         if (handle_message(app) == false) {
             cout << "Error: failed in handling echo message" << endl;
             return false;
@@ -890,6 +933,7 @@ int main(int argc, char** argv)
     nh.param("com_port", user_comm_port_name, string(""));
     nh.param("rate", data_rate, string("low"));
     nh.param("time_sync", app->do_sync, true);
+    // TODO: This should be turned to a boolean, see the "time_sync" param above for an example
     nh.param("init", dev_init, string("yes"));
 
     // Data rate (which also determines baud rate)
@@ -933,6 +977,8 @@ int main(int argc, char** argv)
     install_signal_handler();
 
     // Simple state machine
+    // TODO: Comment on each if statment explaining what they are doing
+    // TODO: along with when they would fail
     if (dev_init == "yes") {
         cout << "initialization begin..." << endl;
 
@@ -992,19 +1038,24 @@ int main(int argc, char** argv)
 //it uses an 'x' as the end for each part.
 //--------------------------------------------------------------------------------------------
 //Headers-------------------------------------------------------------------------------------
-char Base_Command_Header[] = { static_cast<char> (MIP_PACKET_SYNC1),
-                               static_cast<char> (MIP_PACKET_SYNC2),
-                               static_cast<char> (BASE_COMMAND_SET),
-                               static_cast<char> (0x02), //Payload length (default)
-                               'x'
-                             };
+// TODO: These should be in another file, not sure why they are stuck down here
+// TODO: Along with this, see the first one below for an example on how I recommend formating them
+// TODO: Explain why you use the 'x' at the end of each part, just don't state that you are putting it there
+char Base_Command_Header[] = {
+    static_cast<char> (MIP_PACKET_SYNC1),
+    static_cast<char> (MIP_PACKET_SYNC2),
+    static_cast<char> (BASE_COMMAND_SET),
+    static_cast<char> (0x02), //Payload length (default)
+    'x'
+};
 
-char DM_Command_Header[] = { static_cast<char> (MIP_PACKET_SYNC1),
-                             static_cast<char> (MIP_PACKET_SYNC2),
-                             static_cast<char> (DM_COMMAND_SET),
-                             static_cast<char> (0x00), //Payload length (mannual)
-                             'x'
-                           };
+char DM_Command_Header[] = {
+    static_cast<char> (MIP_PACKET_SYNC1),
+    static_cast<char> (MIP_PACKET_SYNC2),
+    static_cast<char> (DM_COMMAND_SET),
+    static_cast<char> (0x00), //Payload length (mannual)
+    'x'
+};
 
 char Sys_Command_Header[] = { static_cast<char> (MIP_PACKET_SYNC1),
                               static_cast<char> (MIP_PACKET_SYNC2),

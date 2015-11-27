@@ -6,6 +6,9 @@
  * Check the communication protocal pdf for info on how to add settings
  */
 
+// TODO: Remove all these dashes, they make the whole thing look like a mess
+// TODO: Use consistent spacing after each define, don't line them up, just use one space
+
 //3DM-GX3-35 MIP Protocol-------------------------------------------------------------------------
 //Base Command Set-------------------------------
 #define BASE_COMMAND_SET   0x01
