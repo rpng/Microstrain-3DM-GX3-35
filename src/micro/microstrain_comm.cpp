@@ -343,8 +343,14 @@ bool handle_message(app_t* app) {
                         break;
                     }
                     case GET_DEV_INFO:
+                        fprintf(stderr, "Get Dev Info : Ignoring\n");
+                        break;
                     case GET_DEV_DESC:
+                        fprintf(stderr, "Get Dev Desc : Ignoring\n");
+                        break;
                     case DEV_BUILT_IN_TEST:
+                        fprintf(stderr, "Get Dev Test : Ignoring\n");
+                        break;
                     case RESUME: {
                         if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
                             fprintf(stderr, "Received [Resume] command echo : no error\n");
@@ -928,7 +934,7 @@ int main(int argc, char** argv)
 
     // Simple state machine
     if (dev_init == "yes") {
-    cout << "initialization begin..." << endl;
+        cout << "initialization begin..." << endl;
 
         if (!set_commands(app, DM_Command_Header, Disable_AHRS_Data_Stream, Disable_GPS_Data_Stream)) {
             cout << "ERROR in initialization: disableDataStream failed" << endl;
