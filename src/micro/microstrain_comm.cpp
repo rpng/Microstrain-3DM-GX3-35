@@ -255,9 +255,9 @@ bool handle_message(app_t* app) {
 
     float float_vals[9] = {0}; //for the longest data format (36-byte) convert
 
-	int ins_timer;
-	int64_t utime = bot_timestamp_now(); //get current timestamp
-	int64_t utime_nosyn = utime;
+    int ins_timer;
+    int64_t utime = bot_timestamp_now(); //get current timestamp
+    int64_t utime_nosyn = utime;
 
     if (app->verbose)
         print_array_char_hex((unsigned char*) app->input_buffer, app->expected_segment_length);
@@ -302,7 +302,7 @@ bool handle_message(app_t* app) {
     }
 
     //parsing message... ...
-	switch (app->input_buffer[header_byte_set_desc]) {
+    switch (app->input_buffer[header_byte_set_desc]) {
         case BASE_COMMAND_SET: {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
                 switch (app->input_buffer[field_1_byte_cmd_echo]) {
