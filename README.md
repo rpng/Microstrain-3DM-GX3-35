@@ -1,7 +1,7 @@
 # microstrain_3dm_gx3_35
 
 * IMU driver for the Microstrain 3DM-GX3®-35.
-* GPS driver are also included here (under development).
+* GPS driver is also included here (under development).
 * Implementing MIP protocol communication.
 * Built with ROS indigo on Ubuntu 14.04 LTS
 * Original package got from https://github.com/udrg/microstrain_comm
@@ -15,4 +15,4 @@
 * `"verbose"`: default false, (if true packet bits are printed)
 * `"debug"`: default false, (if true debug messages are printed)
 * `"init"`: default false, (if true do initialization, such as settiing data format, etc.)
-* `"com_port"`: default "", (name of the serial port designated by user)
+* `"com_port"`: default " ", (name of the serial port designated by user)
