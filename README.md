@@ -1,8 +1,7 @@
 # microstrain_3dm_gx3_35
 
-* IMU driver for the Microstrain 3DM-GX3®-35.
-* GPS driver is also included here (under development).
-* Implementing MIP protocol communication.
+* A ROS driver for the Microstrain 3DM-GX3®-35 implementing MIP protocol.
+* Driver for GPS component is also included here (under development).
 * Built with ROS indigo on Ubuntu 14.04 LTS
 * Original package got from https://github.com/udrg/microstrain_comm
 
