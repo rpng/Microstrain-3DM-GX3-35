@@ -4,7 +4,7 @@
 * Implementing MIP protocol communication.
 * GPS driver are also included here (under development).
 * Original package got from https://github.com/udrg/microstrain_comm
-* Built with #ROS indigo on Ubuntu 14.04 LTS
+* Built with ##ROS indigo on Ubuntu 14.04 LTS
 
 ### Dependencies:
 * GLIB2
