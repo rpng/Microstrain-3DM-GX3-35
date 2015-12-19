@@ -4,7 +4,7 @@
 * Implementing MIP protocol communication.
 * GPS driver are also included here (under development).
 * Original package got from https://github.com/udrg/microstrain_comm
-* Built with ROS indigo on Ubuntu 14.04 LTS
+* Built with [ROS] indigo on Ubuntu 14.04 LTS
 
 ### Dependencies:
 * GLIB2
@@ -15,5 +15,4 @@
 * `"verbose"`: default false, (if true packet bits are printed)
 * `"debug"`: default false, (if true debug messages are printed)
 * `"com_port"`: default "", (custom serial port)
-* `"rate"`: default "low", ("high"=1000hz, "medium"=500hz, "low"=100hz, now 100Hz works)
 * `"init"`: default false, (do initialization, such as settiing data format etc)
