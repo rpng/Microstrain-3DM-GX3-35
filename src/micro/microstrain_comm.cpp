@@ -357,7 +357,7 @@ bool handle_message(app_t* app) {
                         success = handle_error("Get Device Info", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case GET_DEV_DESC:
-                        success = success = handle_error("Get Device Descriptor", app->input_buffer[field_1_byte_err_code]);
+                        success = handle_error("Get Device Descriptor", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case DEV_BUILT_IN_TEST:
                         success = handle_error("Device Built-in Test", app->input_buffer[field_1_byte_err_code]);
