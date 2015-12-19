@@ -28,6 +28,8 @@
 
 using namespace std;
 
+typedef unsigned char Byte;
+
 // Global reference to Glib main loop
 static GMainLoop* mainloop = NULL;
 
@@ -37,45 +39,48 @@ ros::Publisher imu_data_pub_;
 // Core app self structure
 class app_t {
 public:
-    //com port communication
-    int  comm;  //com port fd
+    // Com port
+    int comm; //file descriptor
     char comm_port_name[255];
     unsigned int baud_rate;
     unsigned int data_rate;
 
-    //buffers: com port buffer -> read_buffer -> input_buffer
+    // Buffers: com port buffer-->read_buffer-->input_buffer
     Byte input_buffer[INPUT_BUFFER_SIZE];
     BotRingBuf* read_buffer;
 
+    // MIP Packet
     char current_segment;         //header or payload
     int  expected_segment_length; //packet length
 
-    //state flags (not currently be used, but may be in future)
+    // State flags (not currently be used, but may be in future)
     bool changed_baud_rate;
     bool changed_data_rate;
     bool in_continuous_mode;
 
-    //boolean setting flags
-    bool verbose; //for normal info print
-    bool debug;   //for error info print
+    // Setting flags
+    bool verbose;
+    bool debug;
     bool little_endian;
 
+    // Timer
     int64_t utime;
     int64_t utime_prev;
 
     string channal;
 
-    //Our imu message
+    // IMU ROS message
     sensor_msgs::Imu reading;
 
+    // Sync
     bot_timestamp_sync_state* sync;
     bool do_sync; //sync
 };
 
-//sig_action()--------------------------------------------------------------------------------
-//callback function that will exit the glib loop.
-//--------------------------------------------------------------------------------------------
-// TODO: Start comment with space then capital letter
+/**
+ * sig_action()
+ * Callback function that will exit the glib loop.
+ */
 static void sig_action(int signal, siginfo_t* s, void* user)
 {
     // kill the glib main loop...
@@ -84,9 +89,10 @@ static void sig_action(int signal, siginfo_t* s, void* user)
     }
 }
 
-//install_signal_handler()--------------------------------------------------------------------
-//set our signal callback, and have it called on SIGINT, SIGTERM, SIGKILL, SIGHUP.
-//--------------------------------------------------------------------------------------------
+/**
+ * install_signal_handler()
+ * Set our signal callback, and have it called on SIGINT, SIGTERM, SIGKILL, SIGHUP.
+ */
 void install_signal_handler()
 {
     struct sigaction action;
@@ -100,102 +106,46 @@ void install_signal_handler()
     sigaction(SIGHUP, &action, NULL);
 }
 
-//API Functions-------------------------------------------------------------------------------
-//they are for opening com port with proper settings and finding attached microstrain devices.
-//--------------------------------------------------------------------------------------------
-//scandev()-----------------------------------------------------------------------------------
-// TODO: Comments should go ontop not next to the variables/methods
-// TODO: Take a look at an example of this method: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L117-L175
-bool scandev(char* comm_port_name) {
-    FILE *instream;
-    char dev_names[255][255]; //allows for up to 256 devices with path links up to 255 characters long each
-    int dev_count = 0;
-    int usr_choice = 0; //default
-    int i, j;
-
-    cout << "Searching for MicroStrain devices..." << endl;
-
-    char command[] = "find /dev/serial -print | grep -i microstrain"; //search /dev/serial for microstrain devices
-    instream = popen(command, "r"); //execute piped command in read mode
-
-    if (!instream) { //SOMETHING WRONG WITH THE SYSTEM COMMAND PIPE...EXITING
-        cout << "Error: failed in opening pipeline : " << command << endl;
-        return false;
-    }
-
-    for (i = 0; i < 255 && (fgets(dev_names[i], sizeof(dev_names[i]), instream)); ++i) { //load char array of device addresses
-        ++dev_count;
-    }
-
-    for (i = 0; i < dev_count; ++i) {
-        for (j = 0; j < sizeof(dev_names[i]); ++j) {
-            if (dev_names[i][j] == '\n') {
-                dev_names[i][j] = '\0'; //replaces newline inserted by pipe reader with char array terminator character
-                break; //breaks loop after replacement
-            }
-        }
-        cout << "Device found: " << i << " : " << dev_names[i] << endl;
-    }
-
-    // TODO: Correct capitalization
-    //CHOOSE DEVICE TO CONNECT TO AND CONNECT TO IT (IF THERE ARE CONNECTED DEVICES)
-    if (dev_count > 0) {
-        if (dev_count > 1) {
-            fprintf(stderr, "Please choose a device to connect (0 to %i):\n", dev_count - 1);
-            while (scanf("%i", &usr_choice) == 0 || usr_choice < 0 || usr_choice > dev_count - 1) { //check that there's input and in the correct range
-                fprintf(stderr, "Invalid choice... Please choose one between 0 and %d:\n", dev_count - 1);
-                getchar(); //clear carriage return from keyboard buffer after invalid choice
-            }
-        }
-        strcpy(comm_port_name, dev_names[usr_choice]);
-        return true;
-    } else {
-        fprintf(stderr, "No MicroStrain devices found\n");
-        return false;
-    }
-}
-
-//setup_com_port()----------------------------------------------------------------------------
-// TODO: Start comments with space then capital letter
-// TODO: Describ and condense your comments see: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L181-L229
-int setup_com_port(ComPortHandle comPort, speed_t baudRate) {
+/**
+ * setup_com_port()
+ * Set the com port with user-defined parameters.
+ */
+int setup_com_port(int comPort, speed_t baudRate) {
     struct termios options;
 
-    //get the current options
+    // Get the current options
     tcgetattr(comPort, &options);
 
-    //set the desired baud rate (default for MicroStrain is 115200)
-    //int baudRate = B115200;
+    // Set the baud rate (default is 115200)
     cfsetospeed(&options, baudRate);
     cfsetispeed(&options, baudRate);
 
-    //set the number of data bits.
+    // Set the number of data bits
     options.c_cflag &= ~CSIZE; //mask the character size bits
     options.c_cflag |= CS8;
 
-    //set the number of stop bits to 1
+    // Set the number of stop bits to 1
     options.c_cflag &= ~CSTOPB;
 
-    //set parity to None
+    // Set parity to none
     options.c_cflag &= ~PARENB;
 
-    //set for non-canonical (raw processing, no echo, etc.)
-    options.c_iflag = IGNPAR; //ignore parity check close_port(int
+    // Set for non-canonical (raw processing, no echo, etc.)
+    options.c_iflag = IGNPAR; //ignore parity check
     options.c_oflag = 0;      //raw output
     options.c_lflag = 0;      //raw input
 
-    //time-outs -- won't work with NDELAY option in the call to open
+    // time-outs -- won't work with NDELAY option in the call to open
     options.c_cc[VMIN]  = 0;   //block reading until RX x characers. If x = 0, it is non-blocking.
     options.c_cc[VTIME] = 100; //Inter-Character Timer -- i.e. timeout= x*.1 s
 
-    //set local mode and enable the receiver
+    // Set local mode and enable the receiver
     options.c_cflag |= (CLOCAL | CREAD);
 
-    // TODO: Remove this random "-----------------", just include words in comments
-    //Purge com port I\O buffers-----------------
+    // Purge com port I\O buffers
     tcflush(comPort, TCIOFLUSH);
 
-    //set the new options
+    // Set the new options
     int status = tcsetattr(comPort, TCSANOW, &options);
 
     if (status != 0) {
@@ -203,18 +153,16 @@ int setup_com_port(ComPortHandle comPort, speed_t baudRate) {
         return status;
     }
 
-    //Purge com port I\O buffers-----------------
+    // Purge com port I\O buffers
     tcflush(comPort, TCIOFLUSH);
 
     return comPort;
 }
 
-//open_com_port()-----------------------------------------------------------------------------
-//it opens a com port with the correct settings.
-//tweaked OpenComPort()- added baud rate argument and split it into two steps.
-//--------------------------------------------------------------------------------------------
-// TODO: Update the function comment to explain what this method does in more detail
-// TODO: See: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L231-L246
+/**
+ * open_com_port()
+ * Open a com port with the right settings.
+ */
 int open_com_port(const char* comPortPath, speed_t baudRate) {
     int comPort = open(comPortPath, O_RDWR | O_NOCTTY);
 
@@ -226,12 +174,64 @@ int open_com_port(const char* comPortPath, speed_t baudRate) {
     return setup_com_port(comPort, baudRate);
 }
 
-//cksum()-------------------------------------------------------------------------------------
-//it uses 2-byte Fletcher ckecksum algorithm.
-//--------------------------------------------------------------------------------------------
-// TODO: Good function header, just remember to start with space then capital letter
-// TODO: Compare with: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L248-L259
-// TODO: Get rid of extra new lines that are not needed, comment what you loop is doing
+/**
+ * scandev()
+ * Scan com ports to find the attached microstrain devices.
+ */
+bool scandev(char* comm_port_name) {
+    FILE *instream;
+    char dev_names[255][255]; //allows for up to 256 devices with path links up to 255 characters long each
+    int dev_count = 0;
+    int usr_choice = 0; //default
+    int i, j;
+
+    cout << "Searching for MicroStrain devices..." << endl;
+
+    char command[] = "find /dev/serial -print | grep -i microstrain"; //search /dev/serial for microstrain devices
+
+    instream = popen(command, "r"); //execute piped command in read mode
+    if (!instream) {
+        cout << "Error: failed in opening pipeline : " << command << endl;
+        return false;
+    }
+
+    // Load the char array of device addresses
+    for (i = 0; i < 255 && (fgets(dev_names[i], sizeof(dev_names[i]), instream)); ++i) {
+        ++dev_count;
+    }
+
+    for (i = 0; i < dev_count; ++i) {
+        for (j = 0; j < sizeof(dev_names[i]); ++j) {
+            if (dev_names[i][j] == '\n') {
+                dev_names[i][j] = '\0'; //replaces newline inserted by pipe reader with the char array terminator character
+                break; //breaks loop after replacement
+            }
+        }
+        cout << "Device found: " << i << " : " << dev_names[i] << endl;
+    }
+
+    // Select the device and connect to it
+    if (dev_count > 0) {
+        if (dev_count > 1) {
+            fprintf(stderr, "Please choose a device to connect (0 to %i):\n", dev_count - 1);
+            while (scanf("%i", &usr_choice) == 0 || usr_choice < 0 || usr_choice > dev_count - 1) { //check that there's input and in the correct range
+                fprintf(stderr, "Invalid choice... Please choose one between 0 and %d:\n", dev_count - 1);
+                getchar(); //clear carriage return from keyboard buffer after invalid choice
+            }
+        }
+
+        strcpy(comm_port_name, dev_names[usr_choice]);
+        return true;
+    } else {
+        fprintf(stderr, "No MicroStrain devices found\n");
+        return false;
+    }
+}
+
+/**
+ * cksum()
+ * Use two-byte Fletcher ckecksum algorithm.
+ */
 unsigned short cksum(const Byte* packet_bytes, int packet_length) {
     uint8_t checksum_byte1 = 0;
     uint8_t checksum_byte2 = 0;
@@ -244,49 +244,74 @@ unsigned short cksum(const Byte* packet_bytes, int packet_length) {
     return ((uint16_t) checksum_byte1 << 8) + ((uint16_t) checksum_byte2);
 }
 
-//handle_message()----------------------------------------------------------------------------
-//it parses the content in payload bytes.
-//--------------------------------------------------------------------------------------------
-// TODO: This function needs a lot of work on the comments, and cleaning
-// TODO: Create a better function comment. See:  https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L410-L414
+/**
+ * handle_error()
+ * Parse the error byte in MIP packet.
+ */
+void handle_error(char* command_name, Byte error_code, bool result) {
+    if (error_code == MIP_ACK_NACK_ERROR_NONE) {
+        fprintf(stderr, "Received [%s] command echo : no error\n", command_name);
+        result = true;
+    }
+    if (error_code == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND) {
+        fprintf(stderr, "Received [%s] command echo : unknown command\n", command_name);
+        result = false;
+    }
+    if (error_code == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID) {
+        fprintf(stderr, "Received [%s] command echo : checksum invalid\n", command_name);
+        result = false;
+    }
+    if (error_code == MIP_ACK_NACK_ERROR_PARAMETER_INVALID) {
+        fprintf(stderr, "Received [%s] command echo : parameter invalid\n", command_name);
+        result = false;
+    }
+    if (error_code == MIP_ACK_NACK_ERROR_COMMAND_FAILED) {
+        fprintf(stderr, "Received [%s] command echo : command failed\n", command_name);
+        result = false;
+    }
+    if (error_code == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT) {
+        fprintf(stderr, "Received [%s] command echo : command timeout\n", command_name);
+        result = false;
+    }
+}
+
+/**
+ * handle_message()
+ * Parse the payload bytes in MIP packet.
+ */
 bool handle_message(app_t* app) {
     bool success = false;
 
-    // TODO: Describe what these are needed for
     uint8_t header_byte_set_desc;
     uint8_t header_byte_payload_length;
 
-    // TODO: Describe what these are needed for, remove this "//field_4_..." that doesn't have any purpose
-    uint8_t field_1_byte_length,   field_2_byte_length,   field_3_byte_length;   //field_4_...
-    uint8_t field_1_byte_cmd_desc, field_2_byte_cmd_desc, field_3_byte_cmd_desc; //field_4_...
-    //for command set reply
-    // TODO: Space then capital letter in comment
-    uint8_t field_1_byte_cmd_echo, field_2_byte_cmd_echo, field_3_byte_cmd_echo; //field_4_...
-    uint8_t field_1_byte_err_code, field_2_byte_err_code, field_3_byte_err_code; //field_4_...
-    //for data set reply
-    // TODO: Remove 4 spaces, just use a single space between muli variables
-    uint8_t field_1_byte_data,     field_2_byte_data,     field_3_byte_data;     //field_4_...
+    uint8_t field_1_byte_length, field_2_byte_length, field_3_byte_length; //TODO: field_4_...
+    uint8_t field_1_byte_cmd_desc, field_2_byte_cmd_desc, field_3_byte_cmd_desc; //TODO: field_4_...
 
-    // Describe what these do
+    // Command set reply
+    uint8_t field_1_byte_cmd_echo, field_2_byte_cmd_echo, field_3_byte_cmd_echo; //TODO: field_4_...
+    uint8_t field_1_byte_err_code, field_2_byte_err_code, field_3_byte_err_code; //TODO: field_4_...
+
+    // Data set reply
+    uint8_t field_1_byte_data, field_2_byte_data, field_3_byte_data; //TODO: field_4_...
+
     uint8_t len_payload;
-    uint8_t len_field_1, len_field_2, len_field_3; //len_field_4
+    uint8_t len_field_1, len_field_2, len_field_3; //TODO: len_field_4
 
     float float_vals[9] = {0}; //for the longest data format (36-byte) convert
 
-    // Our core timer, and sync time
     int ins_timer;
-    int64_t utime = bot_timestamp_now();
+    int64_t utime = bot_timestamp_now(); //get current time stamp
     int64_t utime_nosyn = utime;
 
     if (app->verbose)
         print_array_char_hex((unsigned char*) app->input_buffer, app->expected_segment_length);
 
-    //Byte indices(index) in MIP packet
+    // Byte indices(index) in MIP packet
     header_byte_set_desc = 2;
     header_byte_payload_length = 3;
     len_payload = (uint8_t) app->input_buffer[header_byte_payload_length];
 
-    // TODO: Explain here why you are setting these values, in human understandable form
     field_1_byte_length   = 4;
     field_1_byte_cmd_desc = 5;
     field_1_byte_cmd_echo = 6; //for command set reply
@@ -294,7 +319,6 @@ bool handle_message(app_t* app) {
     field_1_byte_data     = 6; //for data set reply
     len_field_1 = (uint8_t) app->input_buffer[field_1_byte_length];
 
-    // TODO: Explain the if statment logic, and what you do if it is true, might need two lines to explain this
     if (len_payload - len_field_1 != 0) {
         field_2_byte_length   = field_1_byte_length + len_field_1;
         field_2_byte_cmd_desc = field_2_byte_length + 1;
@@ -303,7 +327,6 @@ bool handle_message(app_t* app) {
         field_2_byte_data     = field_2_byte_length + 2;
         len_field_2 = (uint8_t) app->input_buffer[field_2_byte_length];
 
-    // TODO: Explain the if statment logic, and what you do if it is true, might need two lines to explain this
         if (len_payload - len_field_1 - len_field_2 != 0) {
             field_3_byte_length   = field_2_byte_length + len_field_2;
             field_3_byte_cmd_desc = field_3_byte_length + 1;
@@ -312,117 +335,46 @@ bool handle_message(app_t* app) {
             field_3_byte_data     = field_3_byte_length + 2;
             len_field_3 = (uint8_t) app->input_buffer[field_3_byte_length];
 
-            // TODO: Remove this, you have two examples above, and this just clutters up the code, not sure why it is here.
+            // TODO: field_4_...
             //if (len_payload - len_field_1 - len_field_2 - len_field_3 != 0){
-                 //field_4_...
-                 //field_4_...
-                 //field_4_...
-                 //field_4_...
-                 //field_4_...
-                 //len_field_4...
+                 //... ...
             //}
         }
     }
 
-    //parsing message... ...
-    // TODO: For this I recommend sending off the data to another method
-    // TODO: For example, whenever you have a "BASE_COMMAND_SET" you pass that data to the base_command method
-    // TODO: that you then do your second if statment. Right now this is very cluttered and hard to read, using methods can clean this up
-    switch (app->input_buffer[header_byte_set_desc]) {
+    // Parse the payload byte by byte
+	switch (app->input_buffer[header_byte_set_desc]) {
         case BASE_COMMAND_SET: {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
                 switch (app->input_buffer[field_1_byte_cmd_echo]) {
-                    case PING: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [Ping] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [Ping] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [Ping] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [Ping] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [Ping] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [Ping] command echo : command timeout\n");
+                    case PING:
+                        handle_error("Ping", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    case SET_TO_IDLE: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [Set To Idle] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [Set To Idle] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [Set To Idle] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [Set To Idle] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [Set To Idle] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [Set To Idle] command echo : command timeout\n");
+                    case SET_TO_IDLE:
+                        handle_error("Set To Idle", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    // TODO: Figure out the logic for these
-                    // TODO: They where orginally overflowing into the "RESUME" switch because they did not have breaks
-                    // TODO: If this is the case, the explain why you do that in a comment, so the programmer knows why this logic is such
                     case GET_DEV_INFO:
-                        fprintf(stderr, "Get Dev Info : Ignoring\n");
+                        handle_error("Get Device Info", app->input_buffer[field_1_byte_err_code], success);
                         break;
                     case GET_DEV_DESC:
-                        fprintf(stderr, "Get Dev Desc : Ignoring\n");
+                        handle_error("Get Device Descriptor", app->input_buffer[field_1_byte_err_code], success);
                         break;
                     case DEV_BUILT_IN_TEST:
-                        fprintf(stderr, "Get Dev Test : Ignoring\n");
+                        handle_error("Device Built-in Test", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    case RESUME: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [Resume] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [Resume] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [Resume] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [Resume] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [Resume] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [Resume] command echo : command timeout\n");
+                    case RESUME:
+                        handle_error("Resume", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    case DEV_RESET: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [Device Reset] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [Device Reset] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [Device Reset] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [Device Reset] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [Device Reset] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [Device Reset] command echo : command timeout\n");
-
+                    case DEV_RESET:
+                        handle_error("Device Reset", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    default: {
+                    default:
                         fprintf(stderr, "Base Command Reply : nothing\n");
                         break;
+                }
+            }
 
-                    }
-                }//switch
-            }//if
-
-            // TODO: Remove this old code stuff, or label it with a TODO label explaining what needs to get done here
-            //if (app->input_buffer[3 + field_1_length + 2] == 0x81/0x83/...) {//for Reply Field 2: ... ...
+            //if (app->input_buffer[3 + field_1_length + 2] == 0x81/0x83/...) {//TODO: for Reply Field 2: ... ...
             //
             //}
 
@@ -432,127 +384,42 @@ bool handle_message(app_t* app) {
         case DM_COMMAND_SET: {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
                 switch (app->input_buffer[field_1_byte_cmd_echo]) {
-                    case AHRS_MESSAGE_FORMAT: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [AHRS Message Format] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [AHRS Message Format] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [AHRS Message Format] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [AHRS Message Format] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [AHRS Message Format] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [AHRS Message Format] command echo : command timeout\n");
+                    case AHRS_MESSAGE_FORMAT:
+                        handle_error("AHRS Message Format", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    case GPS_MESSAGE_FORMAT: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [GPS Message Format] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [GPS Message Format] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [GPS Message Format] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [GPS Message Format] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [GPS Message Format] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [GPS Message Format] command echo : command timeout\n");
+                    case GPS_MESSAGE_FORMAT:
+                        handle_error("GPS Message Format", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    case EN_DEV_CONT_DATA_STREAM: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [Enable Device Continuous Data Stream] command echo : command timeout\n");
+                    case EN_DEV_CONT_DATA_STREAM:
+                        handle_error("Enable Device Continuous Data Stream", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    case SAVE_DEV_STARTUP_SETTING: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [Save Device Startup Setting] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [Save Device Startup Setting] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [Save Device Startup Setting] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [Save Device Startup Setting] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [Save Device Startup Setting] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [Save Device Startup Setting] command echo : command timeout\n");
+                    case SAVE_DEV_STARTUP_SETTING:
+                        handle_error("Save Device Startup Setting", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    case UART_BAUD_RATE: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [UART Baud Rate] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [UART Baud Rate] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [UART Baud Rate] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [UART Baud Rate] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [UART Baud Rate] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [UART Baud Rate] command echo : command timeout\n");
+                    case UART_BAUD_RATE:
+                        handle_error("UART Baud Rate", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    default: {
+                    default:
                         fprintf(stderr, "DM Command Reply : nothing\n");
                         break;
-                    }
-                }//switch
-            }//if
+                }
+            }
+
             break;
         }
 
         case SYS_COMMAND_SET: {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
                 switch (app->input_buffer[field_1_byte_cmd_echo]) {
-                    case COMMUNICATION_MODE: {
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_NONE) {
-                            fprintf(stderr, "Received [Communication Mode] command echo : no error\n");
-                            success = true;
-                        }
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND)
-                            fprintf(stderr, "Received [Communication Mode] command echo : unknown command\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID)
-                            fprintf(stderr, "Received [Communication Mode] command echo : checksum invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_PARAMETER_INVALID)
-                            fprintf(stderr, "Received [Communication Mode] command echo : parameter invalid\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_FAILED)
-                            fprintf(stderr, "Received [Communication Mode] command echo : command failed\n");
-                        if (app->input_buffer[field_1_byte_err_code] == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT)
-                            fprintf(stderr, "Received [Communication Mode] command echo : command timeout\n");
-
+                    case COMMUNICATION_MODE:
+                        handle_error("Communication Mode", app->input_buffer[field_1_byte_err_code], success);
                         break;
-                    }
-                    default: {
+                    default:
                         fprintf(stderr, "System Command Reply : nothing\n");
                         break;
-                    }
-                }//switch
-            }//if
+                }
+            }
+
             break;
         }
 
@@ -567,11 +434,9 @@ bool handle_message(app_t* app) {
 
                     break;
                 }
-                // TODO: Remove this random stuff
                 //case ...:
                     //... ...
                     //break;
-                // TODO: You don't need a default statment if you do not have anything special to do, remove this
                 default:
                     break;
             }
@@ -603,7 +468,7 @@ bool handle_message(app_t* app) {
                     }
                     //cout << "timestamp: " << app-utime << endl;
 
-                    app->reading.header.stamp = ros::Time::now(); ////////////////////////////
+                    app->reading.header.stamp = ros::Time::now(); ///////////////////////////////////////////
 
                     break;
                 }
@@ -614,17 +479,13 @@ bool handle_message(app_t* app) {
                     break;
             }
 
-            success = true;
-
-            //publish to imu topic
-            // TODO: Space then capital letter
+            // Publish to imu topic
             imu_data_pub_.publish(app->reading);
 
+            success = true;
             break;
         }
 
-        // TODO: What is going on here, comment with TODOs explain what you will do in the future
-        // TODO: If nothing is planned for this, just remove this code that you don't need
         case GPS_DATA_SET: {
             switch (app->input_buffer[field_1_byte_cmd_desc]) {
                 case ECEF_POSITION:
@@ -650,22 +511,18 @@ bool handle_message(app_t* app) {
                 fprintf(stderr, "Error: unknown message with the starting byte : 0x%x\n", app->input_buffer[0]);
             break;
         }
-    }//switch
+    }
 
     return success;
 }
 
-//unpack_packets()----------------------------------------------------------------------------
-//it gets data packets out of ring buffer.
-//it has two states, either parsing the header bytes or parsing payload and checksum bytes.
-//it will be waiting until it has all expected bytes before taking appropriate action.
-//--------------------------------------------------------------------------------------------
-// TODO: Come up with better line usage
-// TODO: This is a mess of a method to make look good and comment but do your best
-// TODO: Try to group similar things, and then add a new line for new groups
-// TODO: See: https://github.com/udrg/microstrain_comm/blob/master/src/micro/microstrain_comm.cpp#L585-L605
+/**
+ * unpack_packets()
+ * It gets data packets out of ring buffer.
+ * It has two states, either parsing the header bytes or parsing payload and checksum bytes.
+ * It will be waiting until it has all expected bytes before taking appropriate action.
+ */
 void unpack_packets(app_t* app) {
-
     while (bot_ringbuf_available(app->read_buffer) >= app->expected_segment_length) {
 
         switch (app->current_segment) {
@@ -673,17 +530,17 @@ void unpack_packets(app_t* app) {
             bot_ringbuf_peek(app->read_buffer, 4, app->input_buffer); //peek packet header
             if (app->verbose)
                 fprintf(stderr, "Received packet with the starting byte : 0x%x\n", app->input_buffer[0]);
-            //parse header
-            // TODO: Make this if statment a single line
-            if ((app->input_buffer[0] == MIP_PACKET_SYNC1) &&
-                (app->input_buffer[1] == MIP_PACKET_SYNC2)) {
+
+            // Parse the header
+            if ((app->input_buffer[0] == MIP_PACKET_SYNC1) && (app->input_buffer[1] == MIP_PACKET_SYNC2)) {
                 app->expected_segment_length = LEN_PACKET_HEADER + app->input_buffer[3] + LEN_PACKET_CHECKSUM;
                 app->current_segment = 'p';
             } else {
                 if (app->debug)
                     fprintf(stderr, "Error: unknown packet with the starting byte : 0x%x\n", app->input_buffer[0]);
-                //read 1 byte and continue until we find a match one
-                bot_ringbuf_read(app->read_buffer, 1, app->input_buffer); //read
+
+                // Read out one byte and continue, until we find a match one
+                bot_ringbuf_read(app->read_buffer, 1, app->input_buffer);
                 app->current_segment = 'h';
                 break;
             }
@@ -702,7 +559,7 @@ void unpack_packets(app_t* app) {
                 app->expected_segment_length = 4;
                 break;
             }
-            //parse message
+
             if (app->verbose)
                 fprintf(stderr, "Passed checksum, handling message...\n");
             bool success = handle_message(app);
@@ -717,90 +574,95 @@ void unpack_packets(app_t* app) {
     }
 }
 
-//set_commands()------------------------------------------------------------------------------
-//it generates the commands for setting AHRS and GPS.
-//it uses std::string to operate the commands, so that user can modify the contents easily.
-//--------------------------------------------------------------------------------------------
-// TODO: This function needs some work, each loop needs to have a comment explaining the logic
-// TODO: Along with this, try to remove your debug code when you can, it make this look a lot messier than it is
-// TODO: You have a lot of fprints, you can us the std::cout, but try to remove all debug and add comments
-// TODO: If you want debug, add it as a part of the program using the "if (app->debug)" statment
-// TODO: Comments on sperate lines, and not to the side, and they start with a space and then capital letter
+/**
+ * set_commands()
+ * It generates the commands for AHRS and GPS settings.
+ * It uses std::string to edit the message so that user can change the contents easily.
+ */
 bool set_commands(app_t* app, const char* command_header, const char* command_field_1, const char* command_field_2) {
-    cout << "in function set_commands()" << endl;
-
     string command_t;
     string command_field_1_t, command_field_2_t;
     string len_cmd_field_1_t, len_cmd_field_2_t;
     string checksum_byte_t;
 
-    cout << "1===================================" << endl;
+    // 1. Edit command header
     for (int i = 0; command_header[i] != 'x'; ++i) {
-        fprintf(stderr, "%x ", command_header[i]);
+        if (app->debug)
+            fprintf(stderr, "%x ", command_header[i]);
         command_t += command_header[i];
     }
     fprintf(stderr, "\n");
-    cout << "length of command header: " << command_t.size() << endl;
 
-    cout << "2===================================" << endl;
+    if (app->debug)
+        cout << "length of command header: " << command_t.size() << endl;
+
+    // 2. Edit 1st command field
     if (command_field_1 != 0) {
         for (int j = 0; command_field_1[j] != 'x'; ++j) {
-            fprintf(stderr, "%x ", command_field_1[j]);
+            if (app->debug)
+                fprintf(stderr, "%x ", command_field_1[j]);
             command_field_1_t += command_field_1[j];
         }
         fprintf(stderr, "\n");
+
         len_cmd_field_1_t += (unsigned char) command_field_1_t.size();
-        cout << "length of 1st command field: " << command_field_1_t.size() << endl;
+        if (app->debug)
+            cout << "length of 1st command field: " << command_field_1_t.size() << endl;
+
         command_t.replace(3, 1, len_cmd_field_1_t); //reset the payload length
-        command_t += command_field_1_t; //combine this field to payload
+        command_t += command_field_1_t; //add to command
     }
 
-    cout << "3===================================" << endl;
+    // 3. Edit 2nd command field
     if (command_field_2 != 0) {
         for (int k = 0; command_field_2[k] != 'x'; ++k) {
-            fprintf(stderr, "%x ", command_field_2[k]);
+            if (app->debug)
+                fprintf(stderr, "%x ", command_field_2[k]);
             command_field_2_t += command_field_2[k];
         }
         fprintf(stderr, "\n");
+
         len_cmd_field_2_t += (unsigned char) (command_field_1_t.size() + command_field_2_t.size());
-        cout << "length of 2nd command field: " << command_field_2_t.size() << endl;
+        if (app->debug)
+            cout << "length of 2nd command field: " << command_field_2_t.size() << endl;
+
         command_t.replace(3, 1, len_cmd_field_2_t); //reset the payload length
-        command_t += command_field_2_t; //combine this field to payload
+        command_t += command_field_2_t; //add to command
     } else {
-        cout << "length of 2nd command field: " << 0 << endl;
+        if(app->debug)
+            cout << "length of 2nd command field: " << 0 << endl;
     }
 
-    cout << "4===================================" << endl;
+    // 4. Edit checksum bytes
     uint8_t checksum_byte_1 = 0;
     uint8_t checksum_byte_2 = 0;
-    for (string::iterator it = command_t.begin(); it != command_t.end(); ++it) {//2-byte Fletcher checksum
+
+    for (string::iterator it = command_t.begin(); it != command_t.end(); ++it) {
         checksum_byte_1 += *it;
         checksum_byte_2 += checksum_byte_1;
     }
     checksum_byte_t += (unsigned char) checksum_byte_1;
     checksum_byte_t += (unsigned char) checksum_byte_2;
-    fprintf(stderr, "%x ", checksum_byte_1);
-    fprintf(stderr, "%x\n", checksum_byte_2);
-    cout << "length of checksum: " << checksum_byte_t.size() << endl;
 
-    command_t += checksum_byte_t; //combine checksum bytes to command
+    if (app->debug) {
+        fprintf(stderr, "%x %x\n ", checksum_byte_1, checksum_byte_2);
+        cout << "length of checksum: " << checksum_byte_t.size() << endl;
+    }
 
-    cout << "5===================================" << endl;
-    //for (int m = 0; m < command_t.size(); ++m) {
-    //    fprintf(stderr, "%x ", command_t[m]);
-    //}
-    //fprintf(stderr, "\n");
+    command_t += checksum_byte_t; //add to command
 
-    // TODO: I am not sure why you need to make a new variable for this write
-    // TODO: Not the best memory management, try to write using your created command_t
-    // TODO: so you don't have to add more memory to the heap
+    // 5. Send the command
     char* command = new char [command_t.size() + 1]; //allocated on heap; +1 means add "\0" to the end
     memcpy(command, command_t.c_str(), command_t.size() + 1);
-    for (int n = 0; n < command_t.size(); ++n) {
-        fprintf(stderr, "%x ", command[n]);
+
+    if (app->debug) {
+        for (int n = 0; n < command_t.size(); ++n) {
+            fprintf(stderr, "%x ", command[n]);
+        }
+        fprintf(stderr,"\n");
+
+        cout << "length of command: " << command_t.size() << endl;
     }
-    fprintf(stderr,"\n");
-    cout << "length of command: " << command_t.size() << endl;
 
     if (write(app->comm, command, command_t.size() + 1) != (command_t.size() + 1)) {
         cout << "Error: failed in sending the command" << endl;
@@ -809,7 +671,7 @@ bool set_commands(app_t* app, const char* command_header, const char* command_fi
 
     delete[] command;
 
-    cout << "6===================================" << endl;
+    // 6. Read the command reply
     if (read(app->comm, app->input_buffer, LEN_REPLY_HEADER) == -1) {
         cout << "Error: failed in receiving the header of command echo" << endl;
         return false;
@@ -817,30 +679,31 @@ bool set_commands(app_t* app, const char* command_header, const char* command_fi
 
     uint8_t len_reply_payload = (uint8_t) app->input_buffer[3];
     app->expected_segment_length = LEN_REPLY_HEADER + len_reply_payload + LEN_REPLY_CHECKSUM;
+
     if (read(app->comm, &app->input_buffer[LEN_REPLY_HEADER], len_reply_payload + LEN_REPLY_CHECKSUM) == -1) {
-        // TODO: This should probably go to the cerr stream not the cout stream
         cout << "Error: failed in receiving the rest of command echo" << endl;
         return false;
     }
 
-    for (int l = 0; l < app->expected_segment_length; ++l) {
-        fprintf(stderr, "%x " , app->input_buffer[l]);
-    }
-    fprintf(stderr, "\n");
-    cout << "length of reply: " << app->expected_segment_length << endl;
+    if (app->debug) {
+        for (int l = 0; l < app->expected_segment_length; ++l) {
+            fprintf(stderr, "%x " , app->input_buffer[l]);
+        }
+        fprintf(stderr, "\n");
 
-    cout << "7===================================" << endl;
-    // TODO: Comment what this is doing, not sure what it is doing
-    // TODO: If statment should all be one line
-    if (app->input_buffer[0] == MIP_PACKET_SYNC1 &&
-        app->input_buffer[1] == MIP_PACKET_SYNC2) {
+        cout << "length of reply: " << app->expected_segment_length << endl;
+    }
+
+    // 7. Parse the command reply
+    if (app->input_buffer[0] == MIP_PACKET_SYNC1 && app->input_buffer[1] == MIP_PACKET_SYNC2) {
         unsigned short inpacket_cksum = make16UnsignedInt(&app->input_buffer[app->expected_segment_length - 2], app->little_endian);
         unsigned short computed_cksum = cksum(app->input_buffer, app->expected_segment_length);
+
         if (computed_cksum != inpacket_cksum) {
             fprintf(stderr, "Error: failed in checksum! got : %d, expected : %d\n", inpacket_cksum, computed_cksum);
             return false;
         }
-        // TODO: Should probably be cerr, and comment what this if statment is checking
+
         if (handle_message(app) == false) {
             cout << "Error: failed in handling echo message" << endl;
             return false;
@@ -850,18 +713,16 @@ bool set_commands(app_t* app, const char* command_header, const char* command_fi
         exit(1);
     }
 
-    cout << "out of function set_commands()" << endl;
-    return true;
+   return true;
 }
 
 /**
-  * This is the callback function from the glib main loop
-  * Reads serial bytes from ardu as they become available from g_io_watch
-  * These bytes are then writen to a circular buffer and the `unpack_packets` method is called.
-  */
-static gboolean serial_read_handler(GIOChannel* source, GIOCondition condition, void* user)
-{
-
+ * serial_read_handler()
+ * Callback function from the glib main loop
+ * It reads serial bytes from ardu as they become available from g_io_watch, then
+ * These bytes are writen to a ring buffer and the unpack_packets() function is called.
+ */
+static gboolean serial_read_handler(GIOChannel* source, GIOCondition condition, void* user) {
     // Check to see if the user has requested a stop
     if (!ros::ok()) {
         g_main_loop_quit(mainloop);
@@ -872,7 +733,7 @@ static gboolean serial_read_handler(GIOChannel* source, GIOCondition condition, 
 
     static uint8_t middle_buffer[INPUT_BUFFER_SIZE];
 
-    // get number of bytes available
+    // Get the number of bytes available
     int available = 0;
 
     if (ioctl(app->comm, FIONREAD, &available) != 0) {
@@ -905,36 +766,35 @@ static gboolean serial_read_handler(GIOChannel* source, GIOCondition condition, 
 }
 
 /**
- * Our main method
- * This method first reads in all parameter information
- * After setting the configuration of the driver, the imu is set to continuous mode
- * This main glib loop is what waits for data from the imu untill the proccess is ended
+ * main()
+ * It first reads in all parameter information, then
+ * After setting the configuration of the driver, the IMU is set to continuous mode.
+ * This main glib loop is what waits for data from the IMU until the process is ended
  */
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     app_t* app = new app_t();
+
     app->little_endian = systemLittleEndianCheck();
 
     ros::init(argc, argv, "microstrain_comm");
     ros::NodeHandle nh("~");
 
-    // Our publisher
+    // ROS publisher
     ros::NodeHandle imu_node_handle("imu");
     imu_data_pub_ = imu_node_handle.advertise<sensor_msgs::Imu>("data", 100);
 
     // Default settings
     string user_comm_port_name;
     string data_rate;
-    string dev_init;
+    bool dev_init;
 
-    // Get our params from the config file, or command line
+    // Get params from the config file, or command line
     nh.param("verbose", app->verbose, false);
     nh.param("debug", app->debug, false);
     nh.param("com_port", user_comm_port_name, string(""));
     nh.param("rate", data_rate, string("low"));
     nh.param("time_sync", app->do_sync, true);
-    // TODO: This should be turned to a boolean, see the "time_sync" param above for an example
-    nh.param("init", dev_init, string("yes"));
+    nh.param("init", dev_init, false);
 
     // Data rate (which also determines baud rate)
     if (data_rate == "low") {
@@ -947,18 +807,18 @@ int main(int argc, char** argv)
         app->data_rate = DATA_RATE_HIGH;
         app->baud_rate = BAUD_RATE_HIGH;
     } else {
-        cerr << "Unknown update rate flag - using default rate" << endl;
+        cerr << "Unknown update rate flag, using default rate" << endl;
     }
 
     if (!app->debug)
-        cout << "Setting data rate to " << app->data_rate << " Hz" << endl;
+        cout << "Setting data rate to " << app->data_rate << "Hz" << endl;
 
     if (!app->debug)
         fprintf(stderr, "Little endian = %d\n", (int)app->little_endian);
 
     mainloop = g_main_loop_new(NULL, FALSE);
     app->utime_prev = bot_timestamp_now();
-    app->sync = bot_timestamp_sync_init(62500, (int64_t)68719 * 62500, 1.001);
+    app->sync = bot_timestamp_sync_init(62500, (int64_t) 68719 * 62500, 1.001);
     app->read_buffer = bot_ringbuf_create(INPUT_BUFFER_SIZE);
 
     // Use user specified port if there is one
@@ -967,7 +827,7 @@ int main(int argc, char** argv)
     else
         strcpy(app->comm_port_name, user_comm_port_name.c_str());
 
-    // Initialize comm port at default baud rate
+    // Initialize com port at default baud rate
     app->comm = open_com_port(app->comm_port_name, BAUD_RATE_DEFAULT);
     if (app->comm < 0) {
         exit(1);
@@ -976,11 +836,9 @@ int main(int argc, char** argv)
     // Install signal handler
     install_signal_handler();
 
-    // Simple state machine
-    // TODO: Comment on each if statment explaining what they are doing
-    // TODO: along with when they would fail
-    if (dev_init == "yes") {
-        cout << "initialization begin..." << endl;
+    // Startup state machine
+    if (dev_init) {
+    cout << "MicroStrain IMU initialization begin..." << endl;
 
         if (!set_commands(app, DM_Command_Header, Disable_AHRS_Data_Stream, Disable_GPS_Data_Stream)) {
             cout << "ERROR in initialization: disableDataStream failed" << endl;
@@ -1008,14 +866,14 @@ int main(int argc, char** argv)
         }
 
         cout << "initialization is done" << endl;
-    } else {//dev_init = "no"
+    } else {
         if (!set_commands(app, Base_Command_Header, Resume, 0)) {
             cout << "ERROR in initialization: resume device failed" << endl;
             exit(1);
         }
     }
 
-    // Set our current segment for unpacking
+    // Set current segment for unpacking
     app->current_segment = 'h';
     app->expected_segment_length = 4;
 
@@ -1026,143 +884,11 @@ int main(int argc, char** argv)
 
     set_commands(app, Base_Command_Header, Set_To_Idle, 0);
 
-    // Close our imu port
+    // Close com port
     close(app->comm);
 
     delete app;
 
     return 0;
 }
-
-//Customized commands for MIP protocol--------------------------------------------------------
-//it uses an 'x' as the end for each part.
-//--------------------------------------------------------------------------------------------
-//Headers-------------------------------------------------------------------------------------
-// TODO: These should be in another file, not sure why they are stuck down here
-// TODO: Along with this, see the first one below for an example on how I recommend formating them
-// TODO: Explain why you use the 'x' at the end of each part, just don't state that you are putting it there
-char Base_Command_Header[] = {
-    static_cast<char> (MIP_PACKET_SYNC1),
-    static_cast<char> (MIP_PACKET_SYNC2),
-    static_cast<char> (BASE_COMMAND_SET),
-    static_cast<char> (0x02), //Payload length (default)
-    'x'
-};
-
-char DM_Command_Header[] = {
-    static_cast<char> (MIP_PACKET_SYNC1),
-    static_cast<char> (MIP_PACKET_SYNC2),
-    static_cast<char> (DM_COMMAND_SET),
-    static_cast<char> (0x00), //Payload length (mannual)
-    'x'
-};
-
-char Sys_Command_Header[] = { static_cast<char> (MIP_PACKET_SYNC1),
-                              static_cast<char> (MIP_PACKET_SYNC2),
-                              static_cast<char> (SYS_COMMAND_SET),
-                              static_cast<char> (0x04), //Payload length (default)
-                              'x'
-                            };
-
-//Fields--------------------------------------------------------------------------------------
-char Set_To_Idle[] = { static_cast<char> (LEN_OF_FIELD(0x02)),
-                       static_cast<char> (SET_TO_IDLE),
-                       'x'
-                     };
-
-char Resume[] = { static_cast<char> (LEN_OF_FIELD(0x02)),
-                  static_cast<char> (RESUME),
-                  'x'
-                };
-
-char Device_Reset[] = { static_cast<char> (LEN_OF_FIELD(0x02)),
-                        static_cast<char> (DEV_RESET),
-                        'x'
-                      };
-
-//-----------------------------------------------
-char Disable_AHRS_Data_Stream[] = { static_cast<char> (LEN_OF_FIELD(0x05)),      //Field length
-                                    static_cast<char> (EN_DEV_CONT_DATA_STREAM), //Cmd Desc.
-                                    static_cast<char> (APPLY_NEW_SETTINGS),      //Action (Apply)--
-                                    static_cast<char> (INDEX_OF_DEVICE(0x01)),   //Device (AHRS)--
-                                    static_cast<char> (DATA_STREAM_ON(0x00)),    //Stream (Off)--
-                                    'x'
-                                  };
-
-char Disable_GPS_Data_Stream[] = { static_cast<char> (LEN_OF_FIELD(0x05)),      //Field length
-                                   static_cast<char> (EN_DEV_CONT_DATA_STREAM), //Cmd Desc.
-                                   static_cast<char> (APPLY_NEW_SETTINGS),      //Action (Apply)--
-                                   static_cast<char> (INDEX_OF_DEVICE(0x02)),   //Device (GPS)--
-                                   static_cast<char> (DATA_STREAM_ON(0x00)),    //Stream (Off)--
-                                   'x'
-                                 };
-
-char Set_UART_BAUD_Rate[] = { static_cast<char> (LEN_OF_FIELD(0x07)),
-                              static_cast<char> (UART_BAUD_RATE),
-                              static_cast<char> (APPLY_NEW_SETTINGS),
-                              static_cast<char> (BAUD_RATE_DEFAULT_BYTE_1), //Baud rate h
-                              static_cast<char> (BAUD_RATE_DEFAULT_BYTE_2), //Baud rate h
-                              static_cast<char> (BAUD_RATE_DEFAULT_BYTE_3), //Baud rate l
-                              static_cast<char> (BAUD_RATE_DEFAULT_BYTE_4), //Baud rate l (115200)--
-                              'x'
-                            };
-
-char Set_AHRS_Message_Format[] = { static_cast<char> (LEN_OF_FIELD(0x0D)),
-                                   static_cast<char> (AHRS_MESSAGE_FORMAT),
-                                   static_cast<char> (APPLY_NEW_SETTINGS),
-                                   static_cast<char> (0x03),                //Desc. count--
-                                   static_cast<char> (SCALED_ACC_VECTOR),   //1st Desc. (Acc)--
-                                   static_cast<char> (0x00),                //Rate dec h
-                                   static_cast<char> (AHRS_DATA_RATE(100)), //Rate dec l (100Hz)--
-                                   static_cast<char> (SCALED_GYRO_VECTOR),  //2nd Desc. (Gyro)--
-                                   static_cast<char> (0x00),                //Rate dec h
-                                   static_cast<char> (AHRS_DATA_RATE(100)), //Rate dec l (100Hz)--
-                                   static_cast<char> (INTERNAL_TIME_STAMP), //3rd Desc. (Timestamp)--
-                                   static_cast<char> (0x00),                //Rate dec h
-                                   static_cast<char> (AHRS_DATA_RATE(100)), //Rate dec l (100Hz)--
-                                   'x'
-                                 };
-
-char Set_GPS_Message_Format[] = { static_cast<char> (LEN_OF_FIELD(0x0A)),
-                                  static_cast<char> (GPS_MESSAGE_FORMAT),
-                                  static_cast<char> (APPLY_NEW_SETTINGS),
-                                  static_cast<char> (0x02),             //Desc. count--
-                                  static_cast<char> (ECEF_POSITION),    //ECEF Pos Desc.--
-                                  static_cast<char> (0x00),             //Rate dec h
-                                  static_cast<char> (GPS_DATA_RATE(1)), //Rate dec l (1Hz)--
-                                  static_cast<char> (ECEF_VELOCITY),    //ECEF Vel Desc.--
-                                  static_cast<char> (0x00),             //Rate dec h
-                                  static_cast<char> (GPS_DATA_RATE(1)), //Rate dec l (1Hz)--
-                                  'x'
-                                };
-
-char Save_AHRS_Message_Format[] = { static_cast<char> (LEN_OF_FIELD(0x04)),
-                                    static_cast<char> (AHRS_MESSAGE_FORMAT),
-                                    static_cast<char> (SAVE_CURRENT_SETTINGS_AS_STARTUP_SETTINGS),
-                                    static_cast<char> (0x00), //Desc. count--
-                                    'x'
-                                  };
-
-char Save_GPS_Message_Format[] = { static_cast<char> (LEN_OF_FIELD(0x04)),
-                                   static_cast<char> (GPS_MESSAGE_FORMAT),
-                                   static_cast<char> (SAVE_CURRENT_SETTINGS_AS_STARTUP_SETTINGS),
-                                   static_cast<char> (0x00), //Desc. count--
-                                   'x'
-                                 };
-
-char Enable_AHRS_Data_Stream[] = { static_cast<char> (LEN_OF_FIELD(0x05)),
-                                   static_cast<char> (EN_DEV_CONT_DATA_STREAM),
-                                   static_cast<char> (APPLY_NEW_SETTINGS),
-                                   static_cast<char> (INDEX_OF_DEVICE(0x01)), //Device (AHRS)--
-                                   static_cast<char> (DATA_STREAM_ON(0x01)),  //Stream (On)--
-                                   'x'
-                                 };
-
-char Enable_GPS_Data_Stream[] = { static_cast<char> (LEN_OF_FIELD(0x05)),
-                                  static_cast<char> (EN_DEV_CONT_DATA_STREAM),
-                                  static_cast<char> (APPLY_NEW_SETTINGS),
-                                  static_cast<char> (INDEX_OF_DEVICE(0x02)), //Device (GPS)--
-                                  static_cast<char> (DATA_STREAM_ON(0x01)),  //Stream (On)--
-                                  'x'
-                                };
 

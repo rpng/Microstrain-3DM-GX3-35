@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(microstrain_comm_35)
+project(microstrain_comm)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -31,6 +31,7 @@ include_directories(
 # Files that we need to build
 add_executable(${PROJECT_NAME}_node
   src/micro/microstrain_comm.cpp
+  src/micro/command_list.cpp
   src/libbot/ringbuf.c
   src/libbot/rotations.c
   src/libbot/serial.c

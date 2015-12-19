@@ -3,14 +3,14 @@
 
 /**
  * Define all needed constants
- * Check the communication protocal pdf for info on how to add settings
+ * Check the MIP protocol pdf for info on how to add settings.
  */
 
-// TODO: Remove all these dashes, they make the whole thing look like a mess
-// TODO: Use consistent spacing after each define, don't line them up, just use one space
+/**
+ * Macros for MIP Protocol
+ */
 
-//3DM-GX3-35 MIP Protocol-------------------------------------------------------------------------
-//Base Command Set-------------------------------
+// Base Command Set
 #define BASE_COMMAND_SET   0x01
 
 #define PING               0x01
@@ -22,7 +22,8 @@
 #define DEV_RESET          0x7E
 
 #define BASE_COMMAND_REPLY 0xF1
-//3DM Command Set--------------------------------
+
+// 3DM Command Set
 #define DM_COMMAND_SET               0x0C
 
 #define POLL_AHRS_DATA               0x01
@@ -39,13 +40,15 @@
 #define UART_BAUD_RATE               0x40
 
 #define DM_COMMAND_REPLY             0xF1
-//System Command Set-----------------------------
+
+// System Command Set
 #define SYS_COMMAND_SET    0x7F
 
 #define COMMUNICATION_MODE 0x10
 
 #define SYS_COMMAND_REPLY  0xF1
-//AHRS Data Sets---------------------------------
+
+// AHRS Data Sets
 #define AHRS_DATA_SET            0x80
 
 #define RAW_ACC_VECTOR           0x01
@@ -66,7 +69,8 @@
 #define STABILIZED_ACC_VECTOR    0x11 //Up
 #define GPS_TIME_STAMP           0x12
 #define WRAPPED_RAW_GX3_25_DATA_PACKET 0x82
-//GPS Data Set-----------------------------------
+
+// GPS Data Set
 #define GPS_DATA_SET       0x81
 
 #define LLH_POSITION       0x03
@@ -82,36 +86,44 @@
 #define HARDWARE_STATUS    0x0D
 #define WRAPPED_RAW_NMEA_PACKET 0x01
 #define WRAPPED_RAW_UBX_PACKET  0x02
-//MIP Packet Header------------------------------
+
+// MIP Packet Header
 #define MIP_PACKET_SYNC1 0x75 //"u"
 #define MIP_PACKET_SYNC2 0x65 //"e"
-//MIP Packet Field-------------------------------
+
+// MIP Packet Field
 #define LEN_OF_FIELD(x)       (x)
 #define NUM_OF_DESCRIPTORS(x) (x)
 #define INDEX_OF_DEVICE(x)    (x)
 #define DATA_STREAM_ON(x)     (x)
-//MIP Packet Length------------------------------
+
+// MIP Packet Length
 #define LEN_PACKET_HEADER   0x04
 #define LEN_PACKET_CHECKSUM 0x02
 
 #define LEN_REPLY_HEADER    0x04 //ACK/NACK
 #define LEN_REPLY_CHECKSUM  0x02 //ACK/NACK
-//MIP Error Codes--------------------------------
+
+// MIP Error Codes
 #define MIP_ACK_NACK_ERROR_NONE              0x00
 #define MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND   0x01
 #define MIP_ACK_NACK_ERROR_CHECKSUM_INVALID  0x02
 #define MIP_ACK_NACK_ERROR_PARAMETER_INVALID 0x03
 #define MIP_ACK_NACK_ERROR_COMMAND_FAILED    0x04
 #define MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT   0x05
-//MIP Function Selectors-------------------------
+
+// MIP Function Selectors
 #define APPLY_NEW_SETTINGS                        0x01
 #define READ_BACK_CURRENT_SETTINGS                0x02
 #define SAVE_CURRENT_SETTINGS_AS_STARTUP_SETTINGS 0x03
 #define LOAD_SAVED_STARTUP_SETTINGS               0x04
 #define LOAD_FACTORY_DEFAULT_SETTINGS             0x05
 
-//OTHER IMU-GPS ABOUT----------------------------------------------------------------------------
-//BAUD Rate--------------------------------------
+/**
+ * Some Relative Variables
+ */
+
+// BAUD Rate
 #define BAUD_RATE_DEFAULT 115200
 #define BAUD_RATE_MED     460800
 #define BAUD_RATE_HIGH    921600
@@ -120,35 +132,29 @@
 #define BAUD_RATE_DEFAULT_BYTE_2 0x01
 #define BAUD_RATE_DEFAULT_BYTE_3 0xC2
 #define BAUD_RATE_DEFAULT_BYTE_4 0x00
-//Data Rate--------------------------------------
+
+// Data Rate
 #define DATA_RATE_HIGH    1000
 #define DATA_RATE_MED     500
 #define DATA_RATE_DEFAULT 100
 
 #define AHRS_DATA_RATE(x) (1000 / x)
 #define GPS_DATA_RATE(x)  (4 / x)
-//Others-----------------------------------------
-#define GRAVITY 9.80665
 
+// Others
+#define GRAVITY 9.80665
 #define INPUT_BUFFER_SIZE 1024
 
-//--------------------------------------------------------------------------------------------
-typedef int ComPortHandle;
-typedef unsigned char Byte;
+/**
+ * Templates for MIP packet
+ */
 
-bool scandev(char* comm_port_name);
-int setup_com_port(ComPortHandle comPort, speed_t baudRate);
-int open_com_port(const char* comPortPath, speed_t baudRate);
-
-//3DM-GX3-35 APIs-----------------------------------------------------------------------------
-//Command Templates------------------------------
-//you can modify them in the func set_commands().
-//-----------------------------------------------
-//Headers--------------------------------
+// Headers
 extern char Base_Command_Header[];
 extern char DM_Command_Header[];
 extern char Sys_Command_Header[];
-//Fields---------------------------------
+
+// Fields
 extern char Set_To_Idle[];
 extern char Resume[];
 extern char Device_Reset[];
