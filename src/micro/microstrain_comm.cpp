@@ -167,7 +167,7 @@ int open_com_port(const char* comPortPath, speed_t baudRate) {
     int comPort = open(comPortPath, O_RDWR | O_NOCTTY);
 
     if (comPort == -1) {
-        fprintf(stderr, "Error: could not open the com port %x : %i\n", comPortPath, errno);
+        fprintf(stderr, "Error: could not open the com port %s : %i\n", comPortPath, errno);
         return -1;
     }
 
@@ -248,30 +248,30 @@ unsigned short cksum(const Byte* packet_bytes, int packet_length) {
  * handle_error()
  * Parse the error byte in MIP packet.
  */
-void handle_error(char* command_name, Byte error_code, bool result) {
+bool handle_error(char* command_name, Byte error_code) {
     if (error_code == MIP_ACK_NACK_ERROR_NONE) {
         fprintf(stderr, "Received [%s] command echo : no error\n", command_name);
-        result = true;
+        return true;
     }
     if (error_code == MIP_ACK_NACK_ERROR_UNKNOWN_COMMAND) {
         fprintf(stderr, "Received [%s] command echo : unknown command\n", command_name);
-        result = false;
+        return false;
     }
     if (error_code == MIP_ACK_NACK_ERROR_CHECKSUM_INVALID) {
         fprintf(stderr, "Received [%s] command echo : checksum invalid\n", command_name);
-        result = false;
+        return false;
     }
     if (error_code == MIP_ACK_NACK_ERROR_PARAMETER_INVALID) {
         fprintf(stderr, "Received [%s] command echo : parameter invalid\n", command_name);
-        result = false;
+        return false;
     }
     if (error_code == MIP_ACK_NACK_ERROR_COMMAND_FAILED) {
         fprintf(stderr, "Received [%s] command echo : command failed\n", command_name);
-        result = false;
+        return false;
     }
     if (error_code == MIP_ACK_NACK_ERROR_COMMAND_TIMEOUT) {
         fprintf(stderr, "Received [%s] command echo : command timeout\n", command_name);
-        result = false;
+        return false;
     }
 }
 
@@ -348,25 +348,25 @@ bool handle_message(app_t* app) {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
                 switch (app->input_buffer[field_1_byte_cmd_echo]) {
                     case PING:
-                        handle_error("Ping", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Ping", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case SET_TO_IDLE:
-                        handle_error("Set To Idle", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Set To Idle", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case GET_DEV_INFO:
-                        handle_error("Get Device Info", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Get Device Info", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case GET_DEV_DESC:
-                        handle_error("Get Device Descriptor", app->input_buffer[field_1_byte_err_code], success);
+                        success = success = handle_error("Get Device Descriptor", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case DEV_BUILT_IN_TEST:
-                        handle_error("Device Built-in Test", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Device Built-in Test", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case RESUME:
-                        handle_error("Resume", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Resume", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case DEV_RESET:
-                        handle_error("Device Reset", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Device Reset", app->input_buffer[field_1_byte_err_code]);
                         break;
                     default:
                         fprintf(stderr, "Base Command Reply : nothing\n");
@@ -385,19 +385,19 @@ bool handle_message(app_t* app) {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
                 switch (app->input_buffer[field_1_byte_cmd_echo]) {
                     case AHRS_MESSAGE_FORMAT:
-                        handle_error("AHRS Message Format", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("AHRS Message Format", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case GPS_MESSAGE_FORMAT:
-                        handle_error("GPS Message Format", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("GPS Message Format", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case EN_DEV_CONT_DATA_STREAM:
-                        handle_error("Enable Device Continuous Data Stream", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Enable Device Continuous Data Stream", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case SAVE_DEV_STARTUP_SETTING:
-                        handle_error("Save Device Startup Setting", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Save Device Startup Setting", app->input_buffer[field_1_byte_err_code]);
                         break;
                     case UART_BAUD_RATE:
-                        handle_error("UART Baud Rate", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("UART Baud Rate", app->input_buffer[field_1_byte_err_code]);
                         break;
                     default:
                         fprintf(stderr, "DM Command Reply : nothing\n");
@@ -412,7 +412,7 @@ bool handle_message(app_t* app) {
             if (app->input_buffer[field_1_byte_cmd_desc] == BASE_COMMAND_REPLY) {//for Reply Field 1: ACK/NACK
                 switch (app->input_buffer[field_1_byte_cmd_echo]) {
                     case COMMUNICATION_MODE:
-                        handle_error("Communication Mode", app->input_buffer[field_1_byte_err_code], success);
+                        success = handle_error("Communication Mode", app->input_buffer[field_1_byte_err_code]);
                         break;
                     default:
                         fprintf(stderr, "System Command Reply : nothing\n");
