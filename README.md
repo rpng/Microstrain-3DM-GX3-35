@@ -14,5 +14,5 @@
 ### Parameters:
 * `"verbose"`: default false, (if true packet bits are printed)
 * `"debug"`: default false, (if true debug messages are printed)
-* `"init"`: default false, (do initialization, such as settiing data format etc)
-* `"com_port"`: default "", (custom serial port)
+* `"init"`: default false, (if true do initialization, such as settiing data format, etc.)
+* `"com_port"`: default "", (name of the serial port designated by user)
