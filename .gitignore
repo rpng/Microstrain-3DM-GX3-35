@@ -1,2 +1,8 @@
-# Ignore Jetbrain IDEs
+# Ignore vim swp files and gedit temp files
+*.swp
+*.*~
+.vim
+
+# Covers JetBrains IDEs
+*.iml
 .idea/
