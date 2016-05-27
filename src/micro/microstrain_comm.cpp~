@@ -13,7 +13,6 @@
 #include <math.h>
 
 #include <ros/ros.h>
-#include <ros/time.h>
 #include "sensor_msgs/Imu.h"
 
 #include <glib.h>
@@ -419,7 +418,7 @@ bool handle_message(app_t* app) {
             switch (app->input_buffer[field_1_byte_cmd_desc]) {
                 case SCALED_ACC_VECTOR: {
                     pack32BitFloats(float_vals, &app->input_buffer[field_1_byte_data], 3, app->little_endian);
-                    cout << "acc: " << float_vals[0] * GRAVITY << ", " << float_vals[1] * GRAVITY << ", " << float_vals[2] * GRAVITY << endl;
+                    //cout << "acc: " << float_vals[0] * GRAVITY << ", " << float_vals[1] * GRAVITY << ", " << float_vals[2] * GRAVITY << endl;
                     app->imu_data.linear_acceleration.x = float_vals[0] * GRAVITY; //~g * 9.8m/s
                     app->imu_data.linear_acceleration.y = float_vals[1] * GRAVITY; //~g * 9.8m/s
                     app->imu_data.linear_acceleration.z = float_vals[2] * GRAVITY; //~g * 9.8m/s
@@ -435,7 +434,7 @@ bool handle_message(app_t* app) {
             switch (app->input_buffer[field_2_byte_cmd_desc]) {
                 case SCALED_GYRO_VECTOR: {
                     pack32BitFloats(float_vals, &app->input_buffer[field_2_byte_data], 3, app->little_endian);
-                    cout << "gyro: " << float_vals[0] << ", " << float_vals[1] << ", " << float_vals[2] << endl;
+                    //cout << "gyro: " << float_vals[0] << ", " << float_vals[1] << ", " << float_vals[2] << endl;
                     app->imu_data.angular_velocity.x = float_vals[0]; //rad/s
                     app->imu_data.angular_velocity.y = float_vals[1]; //rad/s
                     app->imu_data.angular_velocity.z = float_vals[2]; //rad/s
@@ -451,7 +450,7 @@ bool handle_message(app_t* app) {
             switch (app->input_buffer[field_3_byte_cmd_desc]) {
                 case INTERNAL_TIME_STAMP: {
                     ins_timer = make32UnsignedInt(&app->input_buffer[field_3_byte_data], app->little_endian);
-                    cout << "timestamp: " << ins_timer << endl;
+                    //cout << "timestamp: " << ins_timer << endl;
 
                     if (app->do_sync) {
                         app->utime = bot_timestamp_sync(app->sync, ins_timer, utime);
@@ -464,16 +463,9 @@ bool handle_message(app_t* app) {
 
                     break;
                 }
-                case QUATERNION: {
-                    pack32BitFloats(float_vals, &app->input_buffer[field_3_byte_data], 4, app->little_endian);
-                    cout << "quaternion: " << float_vals[1] << ", " << float_vals[2] << ", " << float_vals[3] << ", " << float_vals[0] << endl;
-                    app->imu_data.orientation.x = float_vals[1];
-                    app->imu_data.orientation.y = float_vals[2];
-                    app->imu_data.orientation.z = float_vals[3];
-                    app->imu_data.orientation.w = float_vals[0];
-
-                    break;
-                                 }
+                //case ...:
+                    //... ...
+                    //break;
                 default:
                     break;
             }
@@ -782,7 +774,7 @@ int main(int argc, char** argv) {
     mainloop = g_main_loop_new(NULL, FALSE);
 
     // Install signal handler
-    install_signal_handler();
+    //install_signal_handler();
 
     app_t* app = new app_t();
     app->little_endian = systemLittleEndianCheck();
@@ -803,7 +795,7 @@ int main(int argc, char** argv) {
     app->utime_prev = bot_timestamp_now();
     app->read_buffer = bot_ringbuf_create(INPUT_BUFFER_SIZE);
     app->sync = bot_timestamp_sync_init(62500, (int64_t) 68719 * 62500, 1.001);
-
+    
     // Use user specified port if there is one
     if (user_comm_port_name == "")
         scandev(app->comm_port_name);

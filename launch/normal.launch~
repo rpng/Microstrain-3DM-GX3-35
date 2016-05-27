@@ -3,7 +3,7 @@
   <node pkg="microstrain_comm_35" type="microstrain_comm_35_node" name="microstrain_comm_35_node" output="screen">
     <param name="verbose" value="false" />
     <param name="debug" value="true" />
-    <param name="init" value="true" />
+    <param name="init" value="yes" />
   </node>
 
 </launch>
