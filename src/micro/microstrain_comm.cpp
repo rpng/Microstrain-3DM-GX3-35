@@ -460,8 +460,6 @@ bool handle_message(app_t* app) {
                     }
                     //cout << "timestamp: " << app-utime << endl;
 
-                    app->imu_data.header.stamp = ros::Time::now(); ///////////////////////////////////////////
-
                     break;
                 }
                 case QUATERNION: {
@@ -477,7 +475,9 @@ bool handle_message(app_t* app) {
                 default:
                     break;
             }
-
+            
+            app->imu_data.header.stamp = ros::Time::now();
+	    
             // Publish to imu topic
             imu_data_pub_.publish(app->imu_data);
 
